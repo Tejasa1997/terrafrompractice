@@ -145,5 +145,125 @@ resource "aws_route_table_association" "private_assoc" {
   subnet_id      = aws_subnet.private_subnet1.id
 
 }
+# Security group creation 
+resource "aws_security_group" "pub_sg" {
+
+  tags = {
+    Name = "pub_sg"
+  }
+
+  description = "allow TLS traffics"
+  vpc_id      = aws_vpc.aws_vpc.id
+
+  ingress {
+    description = "Access from HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Access from SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Access from HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_security_group" "pvt_sg" {
+
+  tags = {
+    Name = "pvt_sg"
+  }
+
+  description = "allow TLS traffics"
+  vpc_id      = aws_vpc.aws_vpc.id
+
+  ingress {
+    description = "Access from HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/24", "10.0.1.0/24"]
+  }
+
+  ingress {
+    description = "Access from SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/24", "10.0.1.0/24"]
+  }
+
+  ingress {
+    description = "Access from HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/24", "10.0.1.0/24"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+# Public EC2
+resource "aws_instance" "pub_ec2" {
+  ami                         = "ami-0cbad6815f3a09a6d"
+  instance_type               = "t2.micro"
+  key_name                    = "my-keypair-tf"
+  subnet_id                   = aws_subnet.public_subnet1.id
+  associate_public_ip_address = true
+  vpc_security_group_ids      = [aws_security_group.pub_sg.id]
 
 
+}
+# Private EC2
+resource "aws_instance" "pvt_ec2" {
+  ami                         = "ami-0cbad6815f3a09a6d"
+  instance_type               = "t2.micro"
+  key_name                    = "my-keypair-tf"
+  subnet_id                   = aws_subnet.private_subnet1.id
+  associate_public_ip_address = false
+  vpc_security_group_ids      = [aws_security_group.pvt_sg.id]
+
+
+}
+# Generate a new private key
+#resource "tls_private_key" "my_key" {
+# algorithm = "RSA"
+#rsa_bits  = 4096
+#}
+
+# Create an AWS key pair using the public key
+#resource "aws_key_pair" "my_ec2_key" {
+# key_name   = "my-keypair-tf"
+# public_key = tls_private_key.my_key.public_key_openssh
+#}
+
+# Save private key locally
+#resource "local_file" "private_key_pem" {
+# content         = tls_private_key.my_key.private_key_pem
+# filename = "C:/Users/tejas/Downloads/my-keypair-tf.pem"
+# file_permission = "0400"
+#}
