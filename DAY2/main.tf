@@ -1,121 +1,87 @@
-# VPC
+# ---------- Provider ----------
+provider "aws" {
+  region = var.aws_region
+}
+
+# ---------- VPC ----------
 resource "aws_vpc" "aws_vpc" {
-
-  cidr_block = "10.0.0.0/16"
-
+  cidr_block = var.vpc_cidr
   tags = {
     Name = "aws_vpc"
   }
-
 }
 
-# Internet Gateway
+# ---------- Internet Gateway ----------
 resource "aws_internet_gateway" "myig" {
-
   vpc_id = aws_vpc.aws_vpc.id
-
   tags = {
     Name = "myig"
-
   }
-
 }
-# Public Subnet1
+
+# ---------- Subnets ----------
 resource "aws_subnet" "public_subnet1" {
-
-  vpc_id = aws_vpc.aws_vpc.id
-
-  cidr_block = "10.0.0.0/24"
-
+  vpc_id                  = aws_vpc.aws_vpc.id
+  cidr_block              = var.public_subnet1_cidr
+  availability_zone       = var.availability_zone1
   map_public_ip_on_launch = true
-
-  availability_zone = "us-west-1b"
-
   tags = {
-
     Name = "public_subnet1"
   }
 }
-# Public Subnet2
+
 resource "aws_subnet" "public_subnet2" {
-
-  vpc_id = aws_vpc.aws_vpc.id
-
-  cidr_block = "10.0.1.0/24"
-
-  availability_zone = "us-west-1c"
-
+  vpc_id                  = aws_vpc.aws_vpc.id
+  cidr_block              = var.public_subnet2_cidr
+  availability_zone       = var.availability_zone2
   map_public_ip_on_launch = true
-
   tags = {
-
     Name = "public_subnet2"
   }
 }
-# Private Subnet1
+
 resource "aws_subnet" "private_subnet1" {
-
-  vpc_id = aws_vpc.aws_vpc.id
-
-  cidr_block = "10.0.2.0/24"
-
-  availability_zone = "us-west-1b"
-
+  vpc_id            = aws_vpc.aws_vpc.id
+  cidr_block        = var.private_subnet1_cidr
+  availability_zone = var.availability_zone1
   tags = {
-
     Name = "private_subnet1"
   }
 }
-# Private Subnet2
+
 resource "aws_subnet" "private_subnet2" {
-
-  vpc_id = aws_vpc.aws_vpc.id
-
-  cidr_block = "10.0.3.0/24"
-
-  availability_zone = "us-west-1c"
-
+  vpc_id            = aws_vpc.aws_vpc.id
+  cidr_block        = var.private_subnet2_cidr
+  availability_zone = var.availability_zone2
   tags = {
-
     Name = "private_subnet2"
   }
 }
-# ellastic ip for Nat gateway
+
+# ---------- NAT Gateway ----------
 resource "aws_eip" "nat_eip" {
-
   domain = "vpc"
-
   tags = {
-
     Name = "nat-eip"
-
   }
 }
-# Nat gateway
+
 resource "aws_nat_gateway" "nat_gateway" {
-
   allocation_id = aws_eip.nat_eip.id
-
-  subnet_id = aws_subnet.public_subnet1.id
-
+  subnet_id     = aws_subnet.public_subnet1.id
+  depends_on    = [aws_internet_gateway.myig]
   tags = {
-
     Name = "nat_gateway"
-
   }
-
-  depends_on = [aws_internet_gateway.myig]
-
 }
-# Route table for public subnet
+
+# ---------- Route Tables ----------
 resource "aws_route_table" "public_rt" {
   vpc_id = aws_vpc.aws_vpc.id
-
   route {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.myig.id
   }
-
   tags = {
     Name = "public-route-table"
   }
@@ -124,17 +90,14 @@ resource "aws_route_table" "public_rt" {
 resource "aws_route_table_association" "public_assoc" {
   route_table_id = aws_route_table.public_rt.id
   subnet_id      = aws_subnet.public_subnet1.id
-
 }
-# Route table for private subnet
+
 resource "aws_route_table" "private_rt" {
   vpc_id = aws_vpc.aws_vpc.id
-
   route {
     cidr_block     = "0.0.0.0/0"
     nat_gateway_id = aws_nat_gateway.nat_gateway.id
   }
-
   tags = {
     Name = "private-route-table"
   }
@@ -143,20 +106,15 @@ resource "aws_route_table" "private_rt" {
 resource "aws_route_table_association" "private_assoc" {
   route_table_id = aws_route_table.private_rt.id
   subnet_id      = aws_subnet.private_subnet1.id
-
 }
-# Security group creation 
+
+# ---------- Security Groups ----------
 resource "aws_security_group" "pub_sg" {
-
-  tags = {
-    Name = "pub_sg"
-  }
-
-  description = "allow TLS traffics"
+  name        = "pub_sg"
+  description = "Allow web & SSH traffic from anywhere"
   vpc_id      = aws_vpc.aws_vpc.id
 
   ingress {
-    description = "Access from HTTP"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
@@ -164,7 +122,6 @@ resource "aws_security_group" "pub_sg" {
   }
 
   ingress {
-    description = "Access from SSH"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
@@ -172,7 +129,6 @@ resource "aws_security_group" "pub_sg" {
   }
 
   ingress {
-    description = "Access from HTTPS"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
@@ -188,36 +144,29 @@ resource "aws_security_group" "pub_sg" {
 }
 
 resource "aws_security_group" "pvt_sg" {
-
-  tags = {
-    Name = "pvt_sg"
-  }
-
-  description = "allow TLS traffics"
+  name        = "pvt_sg"
+  description = "Allow traffic from public subnets"
   vpc_id      = aws_vpc.aws_vpc.id
 
   ingress {
-    description = "Access from HTTP"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = ["10.0.0.0/24", "10.0.1.0/24"]
+    cidr_blocks = [var.public_subnet1_cidr, var.public_subnet2_cidr]
   }
 
   ingress {
-    description = "Access from SSH"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["10.0.0.0/24", "10.0.1.0/24"]
+    cidr_blocks = [var.public_subnet1_cidr, var.public_subnet2_cidr]
   }
 
   ingress {
-    description = "Access from HTTPS"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = ["10.0.0.0/24", "10.0.1.0/24"]
+    cidr_blocks = [var.public_subnet1_cidr, var.public_subnet2_cidr]
   }
 
   egress {
@@ -227,55 +176,62 @@ resource "aws_security_group" "pvt_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
-# Public EC2
+
+# ---------- EC2 Instances ----------
 resource "aws_instance" "pub_ec2" {
-  ami                         = "ami-0cbad6815f3a09a6d"
-  instance_type               = "t2.micro"
-  key_name                    = "my-keypair-tf"
+  ami                         = var.ami
+  instance_type               = var.instance_type
+  key_name                    = var.key_name
   subnet_id                   = aws_subnet.public_subnet1.id
   associate_public_ip_address = true
   vpc_security_group_ids      = [aws_security_group.pub_sg.id]
 
-
+  tags = {
+    Name = "${var.instance_name}-public"
+  }
 }
-# Private EC2
+
 resource "aws_instance" "pvt_ec2" {
-  ami                         = "ami-0cbad6815f3a09a6d"
-  instance_type               = "t2.micro"
-  key_name                    = "my-keypair-tf"
+  ami                         = var.ami
+  instance_type               = var.instance_type
+  key_name                    = var.key_name
   subnet_id                   = aws_subnet.private_subnet1.id
   associate_public_ip_address = false
   vpc_security_group_ids      = [aws_security_group.pvt_sg.id]
+
+  tags = {
+    Name = "${var.instance_name}-private"
+  }
 }
-/*
-#AMI creation from pvt ec2
-resource "aws_ami_from_instance" "pvt_ec2_ami" {
-  name               = "pvt-ec2-custom-ami"
+
+
+# ---------- Create AMI from Private Instance ----------
+/*resource "aws_ami_from_instance" "pvt_ec2_ami" {
+  name               = "${var.instance_name}-custom-ami"
   source_instance_id = aws_instance.pvt_ec2.id
   depends_on         = [aws_instance.pvt_ec2]
 }
 
-# Create launch template from pvt ec2
+# ---------- Launch Template ----------
 resource "aws_launch_template" "my_lt" {
-  name_prefix   = "lt-"
+  name_prefix   = "lt-${var.instance_name}-"
   image_id      = aws_ami_from_instance.pvt_ec2_ami.id
-  instance_type = "t2.micro"
-  key_name      = "my-keypair-tf"
+  instance_type = var.instance_type
+  key_name      = var.key_name
 
   vpc_security_group_ids = [aws_security_group.pvt_sg.id]
 
   tag_specifications {
     resource_type = "instance"
-
     tags = {
-      Name = "lt-instance"
+      Name = "${var.instance_name}-lt-instance"
     }
   }
 }
 
-#Create Targate group for running app server which is pvt ec2
+# ---------- Target Group ----------
 resource "aws_lb_target_group" "my_tg" {
-  name     = "app-tg"
+  name     = "${var.instance_name}-tg"
   port     = 80
   protocol = "HTTP"
   vpc_id   = aws_vpc.aws_vpc.id
@@ -291,16 +247,16 @@ resource "aws_lb_target_group" "my_tg" {
   }
 }
 
-# Create ELB (ALB)
+# ---------- Application Load Balancer ----------
 resource "aws_lb" "my_alb" {
-  name               = "my-alb"
+  name               = "${var.instance_name}-alb"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.pub_sg.id]
   subnets            = [aws_subnet.public_subnet1.id, aws_subnet.public_subnet2.id]
 
   tags = {
-    Name = "my-alb"
+    Name = "${var.instance_name}-alb"
   }
 }
 
@@ -315,9 +271,9 @@ resource "aws_lb_listener" "alb_listener" {
   }
 }
 
-#Create ASG For Same app Running server
+# ---------- Auto Scaling Group ----------
 resource "aws_autoscaling_group" "my_asg" {
-  name                      = "my-asg"
+  name                      = "${var.instance_name}-asg"
   desired_capacity          = 1
   max_size                  = 3
   min_size                  = 1
@@ -333,29 +289,11 @@ resource "aws_autoscaling_group" "my_asg" {
 
   tag {
     key                 = "Name"
-    value               = "asg-instance"
+    value               = "${var.instance_name}-asg-instance"
     propagate_at_launch = true
   }
 
   depends_on = [aws_lb_listener.alb_listener]
 }
-
-# Generate a new private key
-resource "tls_private_key" "my_key" {
-algorithm = "RSA"
-rsa_bits  = 4096
-}
-
-# Create an AWS key pair using the public key
-resource "aws_key_pair" "my_ec2_key" {
- key_name   = "my-keypair-tf"
- public_key = tls_private_key.my_key.public_key_openssh
-}
-
-# Save private key locally
-resource "local_file" "private_key_pem" {
- content         = tls_private_key.my_key.private_key_pem
- filename = "C:/Users/tejas/Downloads/my-keypair-tf.pem"
- file_permission = "0400"
-} 
 */
+
