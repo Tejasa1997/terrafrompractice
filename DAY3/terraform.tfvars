@@ -1,0 +1,10 @@
+region              = "us-west-1"
+db_name             = "mydb"
+db_username         = "admin"
+db_password         = "MySecurePass123!"
+db_instance_class   = "db.t3.micro"
+db_allocated_storage = 20
+engine              = "mysql"
+engine_version      = "8.0"
+subnet_ids          = ["subnet-123abc", "subnet-456def"]
+vpc_security_group_ids = ["sg-0abc1234"]
